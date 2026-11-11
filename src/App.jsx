@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import {
   Home, Search, Library, Plus, Heart, Play,
@@ -12,17 +11,67 @@ const CLIENT_ID = "8c96364f";
 function App() {
   const [activePage, setActivePage] = useState("Home");
   const [songs, setSongs] = useState([]);
+  const [youtubeResults, setYoutubeResults] = useState([]);
+  const [unifiedResults, setUnifiedResults] = useState([]);
+
   const [currentSong, setCurrentSong] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
   const [error, setError] = useState("");
+  const [youtubeError, setYoutubeError] = useState("");
+  const [selectedVideoId, setSelectedVideoId] = useState("");
 
   const audioRef = useRef(null);
+  const youtubeFrameRef = useRef(null);
+
+  // Calculate how closely a result matches the search query
+  const getRelevanceScore = (query, title = "", artist = "") => {
+    const normalize = (value) =>
+      value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const search = normalize(query);
+    const normalizedTitle = normalize(title);
+    const normalizedArtist = normalize(artist);
+
+    if (!search) return 0;
+
+    if (normalizedTitle === search) return 100;
+
+    if (normalizedTitle.includes(search)) return 85;
+
+    if (normalizedArtist === search) return 75;
+
+    if (normalizedArtist.includes(search)) return 65;
+
+    const words = search.split(" ").filter(Boolean);
+
+    const titleMatches = words.filter((word) =>
+      normalizedTitle.includes(word)
+    ).length;
+
+    const artistMatches = words.filter((word) =>
+      normalizedArtist.includes(word)
+    ).length;
+
+    return (
+      (titleMatches / words.length) * 50 +
+      (artistMatches / words.length) * 25
+    );
+  };
 
   // Fetch songs from Jamendo API
   const searchTracks = async (query) => {
-    if (!query.trim()) return;
+    if (!query.trim()) return [];
 
     setLoading(true);
     setError("");
@@ -57,39 +106,178 @@ function App() {
           image: track.album_image,
           audio: track.audio,
           duration: track.duration,
+          source: "Jamendo",
         }));
 
       setSongs(formattedSongs);
+      return formattedSongs;
 
-      if (formattedSongs.length === 0) {
-        setError("No playable songs found. Try another search.");
-      }
     } catch (err) {
       console.error("Jamendo API Error:", err);
-      setError("Unable to load songs. Please try again.");
+      setError("Unable to load Jamendo songs.");
+      setSongs([]);
+      return [];
+
     } finally {
       setLoading(false);
     }
   };
 
-  // Load initial songs
+  // Search songs using YouTube Data API
+  const searchYouTube = async (query) => {
+    if (!query.trim()) return [];
+
+    setYoutubeLoading(true);
+    setYoutubeError("");
+
+    try {
+      const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
+
+      if (!API_KEY) {
+        throw new Error("YouTube API key is missing. Check your .env file.");
+      }
+
+      const url =
+        `https://www.googleapis.com/youtube/v3/search` +
+        `?part=snippet` +
+        `&type=video` +
+        `&videoEmbeddable=true` +
+        `&maxResults=12` +
+        `&q=${encodeURIComponent(query)}` +
+        `&key=${API_KEY}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error?.message || "YouTube search failed"
+        );
+      }
+
+      const videos = data.items || [];
+
+      setYoutubeResults(videos);
+      return videos;
+
+    } catch (err) {
+      console.error("YouTube API Error:", err);
+      setYoutubeError(err.message || "Unable to search YouTube.");
+      setYoutubeResults([]);
+      return [];
+
+    } finally {
+      setYoutubeLoading(false);
+    }
+  };
+
+  // Search both platforms and create one common queue
+  const searchAll = async (query) => {
+    if (!query.trim()) return;
+
+    setLoading(true);
+    setYoutubeLoading(true);
+    setError("");
+    setYoutubeError("");
+    setUnifiedResults([]);
+
+    // Stop the previous song when a new search starts
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
+    setCurrentSong(null);
+    setCurrentIndex(-1);
+    setSelectedVideoId("");
+    setIsPlaying(false);
+
+    const [jamendoData, youtubeData] = await Promise.all([
+      searchTracks(query),
+      searchYouTube(query),
+    ]);
+
+    const jamendoFormatted = (jamendoData || []).map((song) => ({
+      ...song,
+      source: "Jamendo",
+      queueId: `Jamendo-${song.id}`,
+      score: getRelevanceScore(query, song.title, song.artist),
+    }));
+
+    const youtubeFormatted = (youtubeData || []).map((video) => ({
+      id: video.id.videoId,
+      title: video.snippet.title,
+      artist: video.snippet.channelTitle,
+      image:
+        video.snippet.thumbnails.medium?.url ||
+        video.snippet.thumbnails.default?.url ||
+        "",
+      videoId: video.id.videoId,
+      source: "YouTube",
+      duration: 0,
+      queueId: `YouTube-${video.id.videoId}`,
+      score: getRelevanceScore(
+        query,
+        video.snippet.title,
+        video.snippet.channelTitle
+      ),
+    }));
+
+    // Combine and sort results by relevance
+    const combinedResults = [
+      ...jamendoFormatted,
+      ...youtubeFormatted,
+    ].sort((a, b) => b.score - a.score);
+
+    setUnifiedResults(combinedResults);
+
+    setLoading(false);
+    setYoutubeLoading(false);
+
+    if (combinedResults.length === 0) {
+      setError("No matching songs found. Try another search.");
+    } else {
+      setError("");
+    }
+  };
+
+  // Load initial results from both platforms
   useEffect(() => {
-    searchTracks("rock");
+    searchAll("rock");
   }, []);
 
   // Search form
   const handleSearch = (e) => {
     e.preventDefault();
+
+    if (!searchQuery.trim()) return;
+
     setActivePage("Search");
-    searchTracks(searchQuery);
+    searchAll(searchQuery);
   };
 
-  // Play selected song
-  const playSong = async (song) => {
+  // Play a song from the common queue
+  const playQueueItem = async (item, index) => {
+    setCurrentSong(item);
+    setCurrentIndex(index);
+
+    if (item.source === "YouTube") {
+      // Stop Jamendo audio before playing YouTube
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
+      setSelectedVideoId(item.videoId);
+      setIsPlaying(true);
+      return;
+    }
+
+    // Play Jamendo song
+    setSelectedVideoId("");
+
     if (!audioRef.current) return;
 
-    setCurrentSong(song);
-    audioRef.current.src = song.audio;
+    audioRef.current.src = item.audio;
 
     try {
       await audioRef.current.play();
@@ -101,16 +289,34 @@ function App() {
     }
   };
 
-  // Play or pause
+  // Play or pause current song
   const togglePlay = async () => {
-    if (!audioRef.current || !currentSong) return;
+    if (!currentSong) return;
+
+    if (currentSong.source === "YouTube") {
+      const command = isPlaying ? "pauseVideo" : "playVideo";
+
+      youtubeFrameRef.current?.contentWindow?.postMessage(
+        JSON.stringify({
+          event: "command",
+          func: command,
+          args: [],
+        }),
+        "*"
+      );
+
+      setIsPlaying(!isPlaying);
+      return;
+    }
+
+    if (!audioRef.current) return;
 
     if (audioRef.current.paused) {
       try {
         await audioRef.current.play();
         setIsPlaying(true);
       } catch (err) {
-        console.error(err);
+        console.error("Playback error:", err);
       }
     } else {
       audioRef.current.pause();
@@ -118,30 +324,29 @@ function App() {
     }
   };
 
-  // Play next song
+  // Play next song in the common queue
   const playNext = () => {
-    if (!songs.length || !currentSong) return;
+    if (!unifiedResults.length) return;
 
-    const index = songs.findIndex(
-      (song) => song.id === currentSong.id
-    );
+    const nextIndex =
+      currentIndex < 0
+        ? 0
+        : (currentIndex + 1) % unifiedResults.length;
 
-    const nextIndex = (index + 1) % songs.length;
-    playSong(songs[nextIndex]);
+    playQueueItem(unifiedResults[nextIndex], nextIndex);
   };
 
-  // Play previous song
+  // Play previous song in the common queue
   const playPrevious = () => {
-    if (!songs.length || !currentSong) return;
-
-    const index = songs.findIndex(
-      (song) => song.id === currentSong.id
-    );
+    if (!unifiedResults.length) return;
 
     const previousIndex =
-      (index - 1 + songs.length) % songs.length;
+      currentIndex < 0
+        ? 0
+        : (currentIndex - 1 + unifiedResults.length) %
+          unifiedResults.length;
 
-    playSong(songs[previousIndex]);
+    playQueueItem(unifiedResults[previousIndex], previousIndex);
   };
 
   // Format seconds into minutes
@@ -160,15 +365,26 @@ function App() {
       {/* Hidden audio element */}
       <audio
         ref={audioRef}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={() => {
+          if (currentSong?.source === "Jamendo") {
+            setIsPlaying(true);
+          }
+        }}
+        onPause={() => {
+          if (currentSong?.source === "Jamendo") {
+            setIsPlaying(false);
+          }
+        }}
         onEnded={playNext}
       />
 
       {/* Sidebar */}
       <aside className="sidebar">
         <h2 className="logo">
-          <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAACXBIWXMAAAsTAAALEwEAmpwYAAACt0lEQVR4nO1ZzW7TQBC2ys+BY4DZpAk8AFdE1Z4ieYaqhyq3qAgegnIq6qW3lis0VYu4QyVUOEC58BSg8gBARRGJOSdcBo2dtKEx6a53bQfhkUZy7Hjn+3ZnZmfHnldIIYVYC3vNcww4x0CrrHCPgT4x4E9W9CtUuQY66D9bZaBZ9tam8gc+PX+NAR+xokNWxEYK9JWBNrhar2UPvLxwlRU9ZcCeMfARIthjhdtcqV/JBjzQXQYMrIGPrkiHlX8nPeDezQus8Jlz4GpEd8SWW/CVxUsM9C4D8Nx3q32x6W7mswSvjvU932hetCeQjdtwvOK2HXjAe/mBpwGJpWTgp/EyA7VzJwAYJEqxYZ7PG7wakKAtM/DVes3JJuVuFXpcoev6BKLyQN9AbYG5tcv8PWA+6jBv7kb33K7Chh54b20qrFNMBhfAp+XJC9crcShFo87szxkPLrMusnifubEcXcs95+7kz2gQkJLYcOCB/O23O314NgGFr5wTcBUjQC91VuDAOQF3MfJRJwYC5wRcxQhQW4dAzzkBVzEC2P0vCARGgzYeRGC+tc1dqrGchguNCeJx8vi5PgEJ4HGibIJ4XBqNE5l5AT+cFs8iIP8VEkcdMwKaadR8IzONieS6okNg1trQsI/HxUhSLeMtzWIOv1gZivPx4RhJokCftbt5YcfMxtiwj8fFSDIC61rgJ/RA0+WSX9UmEJKQdt/kENg0Ah8SqM2XJuNQT53EfVPpVeZOoHy7mQj8CQnaydF1Wlbgjz9eKHqdg+u8Za9+3prASXMX9zME/8ZZc/dUez39zATYcjbzsUQULqWSnQB/WAesYd90K9xg7IF3Jc9L2s4E/B9ESn41LDuS1E7yDtC68Q6bChEpAJU/I30bqdnl4BGe7KQciVROeR/6z1akqpyIz6yFFOL9+/IbnR+fXrEoz4wAAAAASUVORK5CYII=" alt="musically"></img>
+          <img
+            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAACXBIWXMAAAsTAAALEwEAmpwYAAACt0lEQVR4nO1ZzW7TQBC2ys+BY4DZpAk8AFdE1Z4ieYaqhyq3qAgegnIq6qW3lis0VYu4QyVUOEC58BSg8gBARRGJOSdcBo2dtKEx6a53bQfhkUZy7Hjn+3ZnZmfHnldIIYVYC3vNcww4x0CrrHCPgT4x4E9W9CtUuQY66D9bZaBZ9tam8gc+PX+NAR+xokNWxEYK9JWBNrhar2UPvLxwlRU9ZcCeMfARIthjhdtcqV/JBjzQXQYMrIGPrkiHlX8nPeDezQus8Jlz4GpEd8SWW/CVxUsM9C4D8Nx3q32x6W7mswSvjvU932hetCeQjdtwvOK2HXjAe/mBpwGJpWTgp/EyA7VzJwAYJEqxYZ7PG7wakKAtM/DVes3JJuVuFXpcoev6BKLyQN9AbYG5tcv8PWA+6jBv7kb33K7Chh54b20qrFNMBhfAp+XJC9crcShFo87szxkPLrMusnifubEcXcs95+7kz2gQkJLYcOCB/O23O314NgGFr5wTcBUjQC91VuDAOQF3MfJRJwYC5wRcxQhQW4dAzzkBVzEC2P0vCARGgzYeRGC+tc1dqrGchguNCeJx8vi5PgEJ4HGibIJ4XBqNE5l5AT+cFs8iIP8VEkcdMwKaadR8IzONieS6okNg1trQsI/HxUhSLeMtzWIOv1gZivPx4RhJokCftbt5YcfMxtiwj8fFSDIC61rgJ/RA0+WSX9UmEJKQdt/kENg0Ah8SqM2XJuNQT53EfVPpVeZOoHy7mQj8CQnaydF1Wlbgjz9eKHqdg+u8Za9+3prASXMX9zME/8ZZc/dUez39zATYcjbzsUQULqWSnQB/WAesYd90K9xg7IF3Jc9L2s4E/B9ESn41LDuS1E7yDtC68Q6bChEpAJU/I30bqdnl4BGe7KQciVROeR/6z1akqpyIz6yFFOL9+/IbnR+fXrEoz4wAAAAASUVORK5CYII="
+            alt="musically"
+          />
           <span>Melodify</span>
         </h2>
 
@@ -263,40 +479,52 @@ function App() {
             <div>
               <h2>
                 {activePage === "Search"
-                  ? "Search Results"
+                  ? "Your Search Queue"
                   : "Made for you"}
               </h2>
 
-              <p>Music that matches your vibe</p>
+              <p>Best matching results from all music platforms</p>
             </div>
 
             <button
               className="see-all"
-              onClick={() => searchTracks("popular")}
+              onClick={() => searchAll("popular")}
             >
               Refresh
             </button>
           </div>
 
-          {loading && <p>Loading songs...</p>}
-
-          {error && <p className="error-message">{error}</p>}
-
-          {!loading && songs.length === 0 && !error && (
-            <p>No songs available.</p>
+          {(loading || youtubeLoading) && (
+            <p>Searching all music platforms...</p>
           )}
 
+          {error && (
+            <p className="error-message">{error}</p>
+          )}
+
+          {youtubeError && (
+            <p className="error-message">{youtubeError}</p>
+          )}
+
+          {!loading &&
+            !youtubeLoading &&
+            unifiedResults.length === 0 &&
+            !error && (
+              <p>No songs available.</p>
+            )}
+
+          {/* Common Jamendo + YouTube queue */}
           <div className="song-grid">
-            {songs.map((song) => (
+            {unifiedResults.map((item, index) => (
               <div
                 className="song-card"
-                key={song.id}
-                onClick={() => playSong(song)}
+                key={item.queueId}
+                onClick={() => playQueueItem(item, index)}
               >
                 <div className="cover-wrapper">
                   <img
-                    src={song.image}
-                    alt={song.title}
+                    src={item.image}
+                    alt={item.title}
                   />
 
                   <button className="card-play">
@@ -308,11 +536,33 @@ function App() {
                   </button>
                 </div>
 
-                <h3>{song.title}</h3>
-                <p>{song.artist}</p>
+                <h3>{item.title}</h3>
+                <p>{item.artist}</p>
+
+                <small>
+                  {index + 1}. {item.source}
+                </small>
               </div>
             ))}
           </div>
+
+          {/* YouTube player */}
+          {selectedVideoId && (
+            <div className="youtube-player">
+              <h3>Now Playing on YouTube</h3>
+
+              <iframe
+                ref={youtubeFrameRef}
+                width="100%"
+                height="400"
+                src={`https://www.youtube.com/embed/${selectedVideoId}?autoplay=1&enablejsapi=1&origin=${window.location.origin}`}
+                title="Melodify YouTube Player"
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          )}
+
         </section>
 
         {/* Voice assistant */}
@@ -344,7 +594,9 @@ function App() {
 
               <div>
                 <h4>{currentSong.title}</h4>
-                <p>{currentSong.artist}</p>
+                <p>
+                  {currentSong.artist} · {currentSong.source}
+                </p>
               </div>
             </>
           ) : (
@@ -360,7 +612,10 @@ function App() {
         <div className="player-controls">
 
           <div className="control-buttons">
-            <button onClick={playPrevious} disabled={!currentSong}>
+            <button
+              onClick={playPrevious}
+              disabled={!currentSong || !unifiedResults.length}
+            >
               <SkipBack size={21} />
             </button>
 
@@ -375,14 +630,17 @@ function App() {
               }
             </button>
 
-            <button onClick={playNext} disabled={!currentSong}>
+            <button
+              onClick={playNext}
+              disabled={!currentSong || !unifiedResults.length}
+            >
               <SkipForward size={21} />
             </button>
           </div>
 
           <div className="progress-area">
             <span>
-              {audioRef.current
+              {currentSong?.source === "Jamendo" && audioRef.current
                 ? formatTime(audioRef.current.currentTime)
                 : "0:00"}
             </span>
@@ -392,7 +650,7 @@ function App() {
             </div>
 
             <span>
-              {currentSong
+              {currentSong?.source === "Jamendo"
                 ? formatTime(currentSong.duration)
                 : "0:00"}
             </span>
@@ -410,9 +668,20 @@ function App() {
             step="0.01"
             defaultValue="0.7"
             onChange={(e) => {
+              const volume = Number(e.target.value);
+
               if (audioRef.current) {
-                audioRef.current.volume = Number(e.target.value);
+                audioRef.current.volume = volume;
               }
+
+              youtubeFrameRef.current?.contentWindow?.postMessage(
+                JSON.stringify({
+                  event: "command",
+                  func: "setVolume",
+                  args: [volume * 100],
+                }),
+                "*"
+              );
             }}
           />
         </div>
