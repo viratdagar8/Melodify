@@ -1,18 +1,189 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Core Palette: Black (#000000), Burgundy (#6D001A), White (#FFFFFF) */
+  --color-black: #000000;
+  --color-burgundy: #6D001A;
+  --color-white: #ffffff;
+
+  --bg-base: #000000;
+  --bg-surface: #0a0a0c;
+  --bg-surface-elevated: #111014;
+  --bg-card: #131216;
+  --bg-card-hover: #1c1920;
+  --bg-glass: rgba(10, 10, 12, 0.78);
+  --bg-glass-strong: rgba(14, 13, 17, 0.94);
+
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-medium: rgba(255, 255, 255, 0.16);
+  --border-accent: rgba(109, 0, 26, 0.5);
+  --border-burgundy: rgba(109, 0, 26, 0.7);
+
+  --accent-primary: #850020;
+  --accent-primary-hover: #a10c32;
+  --accent-primary-active: #6D001A;
+  --accent-glow: rgba(109, 0, 26, 0.4);
+  --accent-glow-strong: rgba(161, 12, 50, 0.65);
+
+  --accent-burgundy-deep: #470011;
+  --accent-burgundy-light: #9B1131;
+  --accent-burgundy-vivid: #b81840;
+
+  --accent-gradient: linear-gradient(135deg, #6D001A 0%, #9B1131 55%, #b81840 100%);
+  --accent-gradient-burgundy: linear-gradient(135deg, #470011 0%, #6D001A 60%, #9B1131 100%);
+  --accent-gradient-silver: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+  --accent-gradient-subtle: linear-gradient(135deg, rgba(109, 0, 26, 0.25) 0%, rgba(255, 255, 255, 0.04) 100%);
+  --hero-gradient: linear-gradient(135deg, #240008 0%, #120105 50%, #000000 100%);
+
+  --text-main: #ffffff;
+  --text-muted: #cbd5e1;
+  --text-dim: #71717a;
+  --text-inverse: #000000;
+
+  --sidebar-width: 250px;
+  --sidebar-collapsed-width: 76px;
+  --topbar-height: 72px;
+  --player-height: 88px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  --transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.85);
+  --shadow-glow: 0 0 30px rgba(109, 0, 26, 0.35);
+  --shadow-glow-strong: 0 0 35px rgba(161, 12, 50, 0.5);
+}
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  font-family: 'Inter', sans-serif;
-  background: #090909;
-  color: white;
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #000000;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(109, 0, 26, 0.6);
 }
 
 button {
   font-family: inherit;
+  border: none;
+  outline: none;
   cursor: pointer;
+  background: transparent;
+  color: inherit;
+  transition: all var(--transition-fast);
+}
+
+input, textarea, select {
+  font-family: inherit;
+  outline: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Keyframe Animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes equalizer {
+  0% {
+    height: 4px;
+  }
+  50% {
+    height: 16px;
+  }
+  100% {
+    height: 6px;
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-loading {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(109, 0, 26, 0.15) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
 }
