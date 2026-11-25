@@ -1,3 +1,4 @@
+
 import {
   Home,
   Search,
@@ -42,7 +43,7 @@ export const Sidebar = ({
 
   return (
     <aside className={`melodify-sidebar ${isCollapsed ? "collapsed" : ""}`}>
-      {/* Brand Header */}
+      {/* Brand Header - Logo Image Removed */}
       <div className="sidebar-brand-wrapper">
         <div
           className="sidebar-brand"
@@ -50,10 +51,6 @@ export const Sidebar = ({
           role="button"
           tabIndex={0}
         >
-          <div className="brand-logo-box">
-            <img src="/logo.jpg" alt="Melodify Logo" className="brand-logo-img" />
-          </div>
-
           {!isCollapsed && (
             <div className="brand-text">
               <span className="brand-title">
@@ -64,7 +61,6 @@ export const Sidebar = ({
           )}
         </div>
 
-        {/* Collapse toggle button */}
         <button
           className="sidebar-toggle-btn"
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -75,7 +71,6 @@ export const Sidebar = ({
         </button>
       </div>
 
-      {/* Main Navigation */}
       <div className="sidebar-scrollable-content">
         <nav className="sidebar-nav-group">
           {!isCollapsed && <span className="sidebar-section-title">DISCOVER</span>}
@@ -97,7 +92,6 @@ export const Sidebar = ({
           })}
         </nav>
 
-        {/* AI Features Group */}
         <div className="sidebar-nav-group ai-group">
           {!isCollapsed && (
             <div className="sidebar-section-header">
@@ -131,7 +125,6 @@ export const Sidebar = ({
           })}
         </div>
 
-        {/* Library & Playlists Group */}
         <div className="sidebar-nav-group">
           {!isCollapsed && <span className="sidebar-section-title">COLLECTIONS</span>}
 
@@ -170,7 +163,6 @@ export const Sidebar = ({
           </button>
         </div>
 
-        {/* User Playlists List */}
         {!isCollapsed && (
           <div className="sidebar-playlists-section">
             <span className="sidebar-section-title">YOUR PLAYLISTS</span>
@@ -195,7 +187,6 @@ export const Sidebar = ({
         )}
       </div>
 
-      {/* Futuristic Bottom Vibe Badge */}
       {!isCollapsed && (
         <div className="sidebar-footer-card">
           <div className="footer-vibe-glow" />

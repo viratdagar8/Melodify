@@ -66,9 +66,9 @@ export const HeroSection = ({ onNavigateAIDJ, onNavigateExplore }) => {
         <div className="hero-spinning-disc-card">
           <div className="disc-glow-ring" />
           <div className={`disc-vinyl ${isPlaying ? "spinning" : ""}`}>
-            <div className="disc-center-label">
+            {/* <div className="disc-center-label">
               <img src="/logo.jpg" alt="Logo" className="disc-logo-img" />
-            </div>
+            </div> */}
           </div>
           <div className="disc-floating-info">
             <span className="disc-now-playing-tag">

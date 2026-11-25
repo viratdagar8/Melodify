@@ -107,7 +107,7 @@ export const Topbar = ({
             onClick={() => setActivePage("assistant")}
           >
             <Sparkles size={14} className="text-cyan-400" />
-            <span>AI Assistant</span>
+            <span>VIBEY</span>
           </button>
         </div>
 

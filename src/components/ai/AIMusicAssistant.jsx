@@ -100,7 +100,7 @@ export const AIMusicAssistant = () => {
           </div>
           <div>
             <div className="assistant-name-row">
-              <h2>Melodify AI Music Copilot</h2>
+              <h2>VIBEY</h2>
               <span className="copilot-badge">Neural v2.4</span>
             </div>
             <p className="assistant-sub">Ask for vibes, activities, moods, or custom acoustic curation</p>
