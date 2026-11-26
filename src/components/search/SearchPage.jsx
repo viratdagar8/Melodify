@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+
 import {
   Search,
   TrendingUp,
@@ -8,7 +9,8 @@ import {
   Compass,
   X
 } from "lucide-react";
-import { searchTracks } from "../../api/jamendoApi";
+//import { searchTracks } from "../../api/jamendoApi";
+import { searchMelodifyTracks } from "../../api/melodifySearch";
 import { usePlayer } from "../../context/PlayerContext";
 import {
   POPULAR_ARTISTS,
@@ -45,7 +47,8 @@ export const SearchPage = ({ initialQuery = "" }) => {
 
       setIsLoading(true);
       try {
-        const tracks = await searchTracks(query, 24);
+        //const tracks = await searchTracks(query, 24);
+        const tracks = await searchMelodifyTracks(query, 24);
         if (!isCancelled) {
           setResults(tracks);
         }
